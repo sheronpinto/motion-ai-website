@@ -1,0 +1,73 @@
+// Prisma schema for Motion-AI purchase/entitlement storage.
+//
+// Local development: SQLite (file-based, zero setup).
+// Production: point DATABASE_URL at a persistent managed Postgres instance
+// (Railway, Supabase, Neon, RDS, etc.) — see README.md for the swap.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// One row per purchase attempt. Created (status="created") the moment a
+// customer submits their details, before Razorpay is ever contacted.
+// Promoted to status="paid" only after a verified webhook (source of
+// truth), optionally fast-tracked by a verified callback redirect.
+model Purchase {
+  id        String   @id @default(cuid())
+  email     String
+  name      String?
+  phone     String?
+
+  // Amount is always re-derived server-side from PRODUCT_PRICE_PAISE.
+  // Stored here only for audit/records, never trusted as input.
+  amountPaise Int    @default(50000)
+  currency    String @default("INR")
+
+  status String @default("created") // created | paid | failed | cancelled
+
+  // Razorpay identifiers, populated once known. Unique + nullable so a
+  // "created" row can exist before payment, then get filled in.
+  paymentLinkId          String? @unique
+  paymentLinkReferenceId String? @unique
+  razorpayPaymentId      String? @unique
+
+  // How this purchase reached "paid" — useful for debugging disputes.
+  confirmedBy String? // "webhook" | "callback+webhook"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  downloads DownloadToken[]
+
+  @@index([email])
+  @@index([status])
+}
+
+// Idempotency ledger for incoming Razorpay webhooks. The primary key is a
+// hash of the raw request body, so a byte-identical redelivery is a no-op
+// even though Razorpay does not guarantee a stable top-level event id.
+model WebhookEvent {
+  id          String   @id
+  eventType   String
+  processedAt DateTime @default(now())
+}
+
+// Short-lived download authorizations. Each row is single-use; the token
+// itself is never stored (only its hash), so a leaked DB dump can't be
+// replayed into a download.
+model DownloadToken {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  purchaseId String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([purchaseId])
+}

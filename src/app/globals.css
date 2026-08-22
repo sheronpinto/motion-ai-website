@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* System-native font stacks — no external font fetch, keeps the
+     deployment dependency-free. Display leans on the serif italics
+     already present in most OS font sets for an editorial, cinematic
+     feel; body stays a clean grotesque for legibility at small sizes. */
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, ui-serif, serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", "IBM Plex Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  background-image: radial-gradient(circle at 1px 1px, rgba(242, 238, 231, 0.035) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+::selection {
+  background: #E0A15C;
+  color: #0B0A0C;
+}
+
+:focus-visible {
+  outline: 2px solid #E0A15C;
+  outline-offset: 3px;
+}
