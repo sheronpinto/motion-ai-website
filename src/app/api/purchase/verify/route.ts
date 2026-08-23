@@ -43,8 +43,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "invalid_signature" }, { status: 400 });
   }
 
-  const purchase = await prisma.purchase.findUnique({
-    where: { paymentLinkId: params.razorpay_payment_link_id },
+  const purchase = await prisma.purchase.findFirst({
+    where: {
+      OR: [
+        { paymentLinkId: params.razorpay_payment_link_id },
+        { razorpayPaymentId: params.razorpay_payment_id },
+      ],
+    },
   });
 
   if (!purchase || purchase.status !== "paid") {

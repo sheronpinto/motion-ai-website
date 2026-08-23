@@ -111,17 +111,34 @@ async function handlePaymentCaptured(payload: any) {
   const paymentEntity = payload?.payload?.payment?.entity;
   if (!paymentEntity) return;
 
-  // If this payment already arrived via payment_link.paid (the common
-  // case for our single Payment Button), there's nothing to do — avoid
-  // creating a duplicate, reference-less Purchase row.
   const existing = await prisma.purchase.findUnique({
     where: { razorpayPaymentId: paymentEntity.id },
   });
   if (existing) return;
 
-  // No associated payment link on this event — nothing safe to key an
-  // entitlement to. Log for manual reconciliation rather than guessing.
-  console.warn(
-    `payment.captured received with no matching payment_link.paid for payment ${paymentEntity.id}. Manual reconciliation may be needed.`
-  );
+  const amountPaise = Number(paymentEntity.amount ?? 0);
+  const currency = String(paymentEntity.currency ?? "");
+  const amountOk = amountPaise === EXPECTED_AMOUNT_PAISE && currency === EXPECTED_CURRENCY;
+
+  // Payment Button flows can emit payment.captured without a preceding
+  // payment_link.paid event. The payment ID is the only stable key exposed
+  // by that event, so retain it as the entitlement's purchase key.
+  await prisma.purchase.create({
+    data: {
+      razorpayPaymentId: paymentEntity.id,
+      email: paymentEntity.email || "unknown@unknown",
+      name: paymentEntity.notes?.name || null,
+      phone: paymentEntity.contact || null,
+      amountPaise,
+      currency,
+      status: amountOk ? "paid" : "failed",
+      confirmedBy: "webhook",
+    },
+  });
+
+  if (!amountOk) {
+    console.error(
+      `Amount/currency mismatch for payment ${paymentEntity.id}: got ${amountPaise} ${currency}, expected ${EXPECTED_AMOUNT_PAISE} ${EXPECTED_CURRENCY}`
+    );
+  }
 }
