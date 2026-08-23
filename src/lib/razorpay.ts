@@ -63,6 +63,42 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader: string 
   return safeEqual(expected, signatureHeader);
 }
 
+export function verifyStandardCheckoutSignature(params: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+}): boolean {
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) return false;
+
+  const expected = hmacHex(`${params.orderId}|${params.paymentId}`, secret);
+  return safeEqual(expected, params.signature);
+}
+
+export async function createRazorpayOrder(options: {
+  amount: number;
+  currency: string;
+  receipt: string;
+}) {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new Error("Razorpay API credentials are not configured");
+
+  const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+  const res = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(options),
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error(`Razorpay Orders API returned ${res.status}`);
+  return res.json() as Promise<{ id: string; amount: number; currency: string }>;
+}
+
 /**
  * Fetches a Payment Link's current state directly from Razorpay's API.
  * Used as a reconciliation fallback (e.g. an admin "resync" action) — not

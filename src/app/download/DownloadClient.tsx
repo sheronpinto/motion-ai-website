@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 type VerifyState =
   | { phase: "checking" }
@@ -14,43 +13,19 @@ const MAX_POLL_ATTEMPTS = 15; // ~45s of polling at 3s intervals
 const POLL_INTERVAL_MS = 3000;
 
 export default function DownloadClient() {
-  const searchParams = useSearchParams();
   const [state, setState] = useState<VerifyState>({ phase: "checking" });
   const attemptRef = useRef(0);
 
-  const razorpayParams = {
-    razorpay_payment_id: searchParams.get("razorpay_payment_id"),
-    razorpay_payment_link_id: searchParams.get("razorpay_payment_link_id"),
-    razorpay_payment_link_reference_id: searchParams.get("razorpay_payment_link_reference_id") ?? "",
-    razorpay_payment_link_status: searchParams.get("razorpay_payment_link_status"),
-    razorpay_signature: searchParams.get("razorpay_signature"),
-  };
-
-  const hasParams =
-    razorpayParams.razorpay_payment_id &&
-    razorpayParams.razorpay_payment_link_id &&
-    razorpayParams.razorpay_payment_link_status &&
-    razorpayParams.razorpay_signature;
-
   useEffect(() => {
-    if (!hasParams) {
-      setState({ phase: "unauthorized" });
-      return;
-    }
-
     let cancelled = false;
 
     async function verify() {
       try {
-        const res = await fetch("/api/purchase/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(razorpayParams),
-        });
+        const res = await fetch("/api/purchase/status", { cache: "no-store" });
 
         if (cancelled) return;
 
-        if (res.status === 400) {
+        if (res.status === 401) {
           setState({ phase: "unauthorized" });
           return;
         }
@@ -86,8 +61,7 @@ export default function DownloadClient() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasParams]);
+  }, []);
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">

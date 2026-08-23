@@ -47,10 +47,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    if (eventType === "payment_link.paid") {
-      await handlePaymentLinkPaid(payload);
-    } else if (eventType === "payment.captured") {
+    if (eventType === "payment.captured") {
       await handlePaymentCaptured(payload);
+    } else if (eventType === "order.paid") {
+      await handleOrderPaid(payload);
+    } else if (eventType === "payment.failed") {
+      await handlePaymentFailed(payload);
     }
     // Other event types are acknowledged but ignored — Razorpay retries on
     // non-200s, so we always 200 once the signature is valid.
@@ -111,29 +113,20 @@ async function handlePaymentCaptured(payload: any) {
   const paymentEntity = payload?.payload?.payment?.entity;
   if (!paymentEntity) return;
 
-  const existing = await prisma.purchase.findUnique({
-    where: { razorpayPaymentId: paymentEntity.id },
-  });
-  if (existing) return;
-
   const amountPaise = Number(paymentEntity.amount ?? 0);
   const currency = String(paymentEntity.currency ?? "");
   const amountOk = amountPaise === EXPECTED_AMOUNT_PAISE && currency === EXPECTED_CURRENCY;
+  const purchase = paymentEntity.order_id
+    ? await prisma.purchase.findUnique({ where: { razorpayOrderId: paymentEntity.order_id } })
+    : null;
+  if (!purchase) {
+    console.warn(`Captured payment ${paymentEntity.id} has no matching server order`);
+    return;
+  }
 
-  // Payment Button flows can emit payment.captured without a preceding
-  // payment_link.paid event. The payment ID is the only stable key exposed
-  // by that event, so retain it as the entitlement's purchase key.
-  await prisma.purchase.create({
-    data: {
-      razorpayPaymentId: paymentEntity.id,
-      email: paymentEntity.email || "unknown@unknown",
-      name: paymentEntity.notes?.name || null,
-      phone: paymentEntity.contact || null,
-      amountPaise,
-      currency,
-      status: amountOk ? "paid" : "failed",
-      confirmedBy: "webhook",
-    },
+  await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: { razorpayPaymentId: paymentEntity.id, status: amountOk ? "paid" : "failed", confirmedBy: "webhook" },
   });
 
   if (!amountOk) {
@@ -141,4 +134,30 @@ async function handlePaymentCaptured(payload: any) {
       `Amount/currency mismatch for payment ${paymentEntity.id}: got ${amountPaise} ${currency}, expected ${EXPECTED_AMOUNT_PAISE} ${EXPECTED_CURRENCY}`
     );
   }
+}
+
+async function handleOrderPaid(payload: any) {
+  const order = payload?.payload?.order?.entity;
+  if (!order?.id) return;
+
+  const purchase = await prisma.purchase.findUnique({ where: { razorpayOrderId: order.id } });
+  if (!purchase) {
+    console.warn(`Paid order ${order.id} has no matching server order`);
+    return;
+  }
+
+  const amountOk = Number(order.amount) === EXPECTED_AMOUNT_PAISE && String(order.currency) === EXPECTED_CURRENCY;
+  await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: { status: amountOk ? "paid" : "failed", confirmedBy: "webhook" },
+  });
+}
+
+async function handlePaymentFailed(payload: any) {
+  const payment = payload?.payload?.payment?.entity;
+  if (!payment?.order_id) return;
+  await prisma.purchase.updateMany({
+    where: { razorpayOrderId: payment.order_id, status: { not: "paid" } },
+    data: { razorpayPaymentId: payment.id, status: "failed", confirmedBy: "webhook" },
+  });
 }

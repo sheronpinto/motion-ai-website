@@ -14,13 +14,13 @@ it doesn't touch that codebase at all.
 
 ```
 Website (Next.js pages)
-   └─ existing Razorpay Payment Button (pl_TSp0dDD3WZ4hn2), embedded as-is
+   └─ Standard Razorpay Checkout (server-created orders)
         └─ customer pays ₹500 on Razorpay's hosted checkout
              ├─ Razorpay → POST /api/razorpay/webhook   (authoritative)
              └─ browser redirected → /download?razorpay_...=...  (fast-path UX)
 
 /download page
-   → POST /api/purchase/verify   (checks redirect signature + webhook status)
+   → GET /api/purchase/status    (checks signed purchase session + webhook status)
    → if paid: short-lived single-use download token issued
    → GET /api/download?token=...  → streams the ZIP (or redirects to a
      presigned object-storage URL)
@@ -52,7 +52,6 @@ All variables are documented inline in `.env.example`. Summary:
 |---|---|
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Dashboard → Settings → API Keys |
 | `RAZORPAY_WEBHOOK_SECRET` | Dashboard → Settings → Webhooks → (the secret you set when creating the webhook — **not** the API key secret) |
-| `NEXT_PUBLIC_RAZORPAY_PAYMENT_BUTTON_ID` | Already set to `pl_TSp0dDD3WZ4hn2` — your existing button |
 | `PRODUCT_PRICE_PAISE` | `50000` = ₹500.00. The backend re-checks every webhook against this value; it never trusts a client-provided amount. |
 | `DOWNLOAD_TOKEN_SECRET` | `openssl rand -hex 32` |
 | `DOWNLOAD_STORAGE_PROVIDER` | `s3` for Vercel with private R2/S3-compatible storage |

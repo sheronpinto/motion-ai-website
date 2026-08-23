@@ -33,6 +33,7 @@ model Purchase {
   // "created" row can exist before payment, then get filled in.
   paymentLinkId          String? @unique
   paymentLinkReferenceId String? @unique
+  razorpayOrderId        String? @unique
   razorpayPaymentId      String? @unique
 
   // How this purchase reached "paid" — useful for debugging disputes.
