@@ -14,16 +14,21 @@ export async function GET(req: NextRequest) {
   }
   if (!purchaseId) return NextResponse.json({ status: "unauthorized" }, { status: 401 });
 
-  const purchase = await prisma.purchase.findUnique({ where: { id: purchaseId } });
-  if (!purchase || purchase.status === "failed" || purchase.status === "cancelled") {
-    return NextResponse.json({ status: "unauthorized" }, { status: 401 });
-  }
-  if (purchase.status !== "paid") return NextResponse.json({ status: "pending" }, { status: 202 });
+  try {
+    const purchase = await prisma.purchase.findUnique({ where: { id: purchaseId } });
+    if (!purchase || purchase.status === "failed" || purchase.status === "cancelled") {
+      return NextResponse.json({ status: "unauthorized" }, { status: 401 });
+    }
+    if (purchase.status !== "paid") return NextResponse.json({ status: "pending" }, { status: 202 });
 
-  const { token, expiresAt } = await issueDownloadToken(purchase.id);
-  return NextResponse.json({
-    status: "paid",
-    downloadToken: token,
-    expiresInSeconds: Math.round((expiresAt.getTime() - Date.now()) / 1000),
-  });
+    const { token, expiresAt } = await issueDownloadToken(purchase.id);
+    return NextResponse.json({
+      status: "paid",
+      downloadToken: token,
+      expiresInSeconds: Math.round((expiresAt.getTime() - Date.now()) / 1000),
+    });
+  } catch (error) {
+    console.error("Purchase status lookup failed:", error);
+    return NextResponse.json({ error: "Payment status is temporarily unavailable" }, { status: 503 });
+  }
 }

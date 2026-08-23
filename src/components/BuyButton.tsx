@@ -13,6 +13,18 @@ export default function BuyButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  async function readJson(response: Response): Promise<Record<string, any>> {
+    const text = await response.text();
+    if (!text.trim()) {
+      throw new Error(`Checkout request failed (${response.status}) with an empty response`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Checkout request failed (${response.status}) with a non-JSON response`);
+    }
+  }
+
   async function beginCheckout() {
     setBusy(true);
     setError("");
@@ -22,7 +34,7 @@ export default function BuyButton() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customer),
       });
-      const order = await orderResponse.json();
+      const order = await readJson(orderResponse);
       if (!orderResponse.ok) throw new Error(order.error || "Unable to start checkout");
 
       if (!window.Razorpay) {
@@ -49,7 +61,10 @@ export default function BuyButton() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payment),
           });
-          if (!response.ok) throw new Error("Payment verification failed");
+          if (!response.ok) {
+            const result = await readJson(response);
+            throw new Error(result.error || `Payment verification failed (${response.status})`);
+          }
           window.location.assign("/download");
         },
         modal: { ondismiss: () => setBusy(false) },
