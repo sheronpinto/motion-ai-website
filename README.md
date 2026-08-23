@@ -55,7 +55,7 @@ All variables are documented inline in `.env.example`. Summary:
 | `NEXT_PUBLIC_RAZORPAY_PAYMENT_BUTTON_ID` | Already set to `pl_TSp0dDD3WZ4hn2` — your existing button |
 | `PRODUCT_PRICE_PAISE` | `50000` = ₹500.00. The backend re-checks every webhook against this value; it never trusts a client-provided amount. |
 | `DOWNLOAD_TOKEN_SECRET` | `openssl rand -hex 32` |
-| `DOWNLOAD_STORAGE_PROVIDER` | `local` for a single-server deploy, `s3` for R2/S3 |
+| `DOWNLOAD_STORAGE_PROVIDER` | `s3` for Vercel with private R2/S3-compatible storage |
 | `NEXT_PUBLIC_SITE_URL` | Your deployed URL, no trailing slash |
 
 **Never commit `.env`.** Only `.env.example` (placeholders) is tracked in Git.
@@ -123,19 +123,12 @@ npm run dev       # http://localhost:3000
 
 ### Database
 
-`prisma/schema.prisma` ships configured for SQLite (`file:./dev.db`) for
-zero-setup local development. For production:
+`prisma/schema.prisma` is configured for PostgreSQL. Vercel production must
+use a persistent managed Postgres instance; its filesystem is not a database.
 
 1. Provision a persistent Postgres instance (Railway, Supabase, Neon, RDS…).
-2. In `prisma/schema.prisma`, change:
-   ```prisma
-   datasource db {
-     provider = "postgresql"   // was "sqlite"
-     url      = env("DATABASE_URL")
-   }
-   ```
-3. Set `DATABASE_URL` to the Postgres connection string.
-4. Run `npx prisma db push` (or set up `prisma migrate` for versioned
+2. Set `DATABASE_URL` to the Postgres connection string.
+3. Run `npx prisma db push` (or set up `prisma migrate` for versioned
    migrations) against the new database.
 
 ## 9. How to upload/update the Motion-AI customer ZIP
@@ -146,11 +139,7 @@ developer/verified package at
 which may contain personal/dev project data. Build a clean release, zip it,
 then:
 
-- **Local / single-server (`DOWNLOAD_STORAGE_PROVIDER=local`):** copy the
-  ZIP to the path set in `LOCAL_DOWNLOAD_PATH` — a location **outside**
-  `/public` and outside the Git repo (e.g. `/secure-files/...` on the
-  server). Update `LOCAL_DOWNLOAD_FILENAME` if the filename changed.
-- **Object storage (`DOWNLOAD_STORAGE_PROVIDER=s3`, works for AWS S3 or
+- **Object storage (`DOWNLOAD_STORAGE_PROVIDER=s3`, required on Vercel; works for AWS S3 or
   Cloudflare R2):** upload the ZIP to the private bucket at the key set in
   `S3_OBJECT_KEY`. Keep the object private — the app generates a 90-second
   presigned URL per authorized download; it's never public.

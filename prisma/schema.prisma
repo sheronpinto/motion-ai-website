@@ -1,15 +1,14 @@
 // Prisma schema for Motion-AI purchase/entitlement storage.
 //
-// Local development: SQLite (file-based, zero setup).
 // Production: point DATABASE_URL at a persistent managed Postgres instance
-// (Railway, Supabase, Neon, RDS, etc.) — see README.md for the swap.
+// (Railway, Supabase, Neon, RDS, etc.) — see README.md.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
